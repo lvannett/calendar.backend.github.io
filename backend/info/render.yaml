@@ -1,0 +1,20 @@
+services:
+  # Web Service (API)
+  - type: web
+    name: ra-scheduler-backend
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ra-scheduler-db
+          property: connectionString
+
+databases:
+  # PostgreSQL Database
+  - name: ra-scheduler-db
+    databaseName: ra_scheduler
+    user: ra_scheduler_user
