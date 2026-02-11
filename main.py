@@ -29,9 +29,9 @@ Base.metadata.create_all(bind=engine)
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="RA/CA Scheduler API",
-    description="Smart scheduling system for college RA/CA duties and academics",
-    version="1.0.0"
+    title="CMUCal API",
+    description="Smart scheduling system for college duties and academics",
+    version="1.0.1"
 )
 
 # Configure CORS
@@ -636,7 +636,7 @@ def get_calendar(
 def root():
     """Health check endpoint"""
     return {
-        "message": "RA/CA Scheduler API is running",
+        "message": "CMUCal API is running",
         "version": "1.0.1",
         "status": "healthy"
     }
