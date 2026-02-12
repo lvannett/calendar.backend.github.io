@@ -5,4 +5,4 @@ pydantic
 python-jose[cryptography]
 passlib[bcrypt]
 python-multipart
-psycopg[binary]
+psycopg2-binary

@@ -29,18 +29,18 @@ Base.metadata.create_all(bind=engine)
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="CMUCal API",
-    description="Smart scheduling system for college duties and academics",
-    version="1.0.1"
+    title="RA/CA Scheduler API",
+    description="Smart scheduling system for college RA/CA duties and academics",
+    version="1.0.0"
 )
 
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://lvannett.github.io/calendar.frontend.github.io/"],  # In production, replace with specific frontend URL
+    allow_origins=["*"],  # In production, replace with specific frontend URL
     allow_credentials=True,
-    allow_methods=["https://lvannett.github.io/calendar.frontend.github.io/"],
-    allow_headers=["https://lvannett.github.io/calendar.frontend.github.io/"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -636,8 +636,8 @@ def get_calendar(
 def root():
     """Health check endpoint"""
     return {
-        "message": "CMUCal API is running",
-        "version": "1.0.1",
+        "message": "RA/CA Scheduler API is running",
+        "version": "1.0.0",
         "status": "healthy"
     }
 
