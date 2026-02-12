@@ -37,10 +37,10 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific frontend URL
+    allow_origins=["https://lvannett.github.io/calendar.frontend.github.io/"],  # In production, replace with specific frontend URL
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["https://lvannett.github.io/calendar.frontend.github.io/"],
+    allow_headers=["https://lvannett.github.io/calendar.frontend.github.io/"],
 )
 
 
