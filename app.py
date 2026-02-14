@@ -1,3 +1,4 @@
+from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from datetime import datetime, timedelta
@@ -10,6 +11,8 @@ import re
 
 app = Flask(__name__)
 CORS(app)
+
+load_dotenv()
 
 # Initialize OpenAI client
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
