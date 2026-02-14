@@ -1,191 +1,110 @@
 """
-Example test script to demonstrate API functionality
-Run with: python test_api.py
+Test script for CMU Schedule Planner API
+Run this to verify your backend is working correctly
 """
 
 import requests
-from datetime import datetime, timedelta
+import json
 
-BASE_URL = "http://localhost:8000"  # Change to your deployed URL
+# Change this to your deployed backend URL or use localhost for local testing
+API_URL = "http://localhost:5000"  # Change to your Render URL when deployed
 
-def test_complete_workflow():
-    """Test the complete workflow of the RA/CA Scheduler"""
-    
-    print("=== RA/CA Scheduler API Test ===\n")
-    
-    # 1. Register a user
-    print("1. Registering new user...")
-    register_response = requests.post(
-        f"{BASE_URL}/api/auth/register",
-        json={
-            "username": "test_ra",
-            "password": "securepassword123"
-        }
-    )
-    print(f"   Status: {register_response.status_code}")
-    if register_response.status_code != 201:
-        print(f"   Error: {register_response.json()}")
-        return
-    
-    # 2. Login
-    print("\n2. Logging in...")
-    login_response = requests.post(
-        f"{BASE_URL}/api/auth/login",
-        json={
-            "username": "test_ra",
-            "password": "securepassword123"
-        }
-    )
-    token = login_response.json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
-    print(f"   Token received: {token[:20]}...")
-    
-    # 3. Update preferences
-    print("\n3. Updating user preferences...")
-    prefs_response = requests.put(
-        f"{BASE_URL}/api/preferences",
-        headers=headers,
-        json={
-            "wake_time": "07:00",
-            "bedtime": "23:00",
-            "default_study_block_minutes": 90
-        }
-    )
-    print(f"   Preferences updated: {prefs_response.json()}")
-    
-    # 4. Add a class schedule
-    print("\n4. Adding class schedule...")
-    class_response = requests.post(
-        f"{BASE_URL}/api/classes",
-        headers=headers,
-        json={
-            "title": "Intro to Computer Science",
-            "day_of_week": 0,  # Monday
-            "start_time": "10:00",
-            "end_time": "11:30"
-        }
-    )
-    print(f"   Class added: {class_response.json()['title']}")
-    
-    # 5. Create assignments
-    print("\n5. Creating assignments...")
-    assignments = [
-        {
-            "title": "CS Homework 1",
-            "category": "Computer Science",
-            "due_date": (datetime.now() + timedelta(days=3)).isoformat(),
-            "priority": 2,
-            "estimated_time_minutes": 120
-        },
-        {
-            "title": "RA Bulletin Board",
-            "category": "RA Duties",
-            "due_date": (datetime.now() + timedelta(days=5)).isoformat(),
-            "priority": 1,
-            "estimated_time_minutes": 60
-        },
-        {
-            "title": "Math Problem Set",
-            "category": "Mathematics",
-            "due_date": (datetime.now() + timedelta(days=7)).isoformat(),
-            "priority": 3,
-            "estimated_time_minutes": 180
-        }
-    ]
-    
-    for assignment in assignments:
-        response = requests.post(
-            f"{BASE_URL}/api/assignments",
-            headers=headers,
-            json=assignment
-        )
-        print(f"   - Created: {response.json()['title']}")
-    
-    # 6. View study blocks
-    print("\n6. Viewing generated study blocks...")
-    study_blocks_response = requests.get(
-        f"{BASE_URL}/api/study-blocks",
-        headers=headers
-    )
-    study_blocks = study_blocks_response.json()
-    print(f"   Generated {len(study_blocks)} study blocks:")
-    for block in study_blocks[:5]:  # Show first 5
-        start = datetime.fromisoformat(block['start_time'].replace('Z', '+00:00'))
-        print(f"   - {start.strftime('%a %m/%d %I:%M %p')}: {block['assignment_title']} ({block['assignment_category']})")
-    
-    # 7. Create a meeting
-    print("\n7. Creating a meeting...")
-    meeting_response = requests.post(
-        f"{BASE_URL}/api/meetings",
-        headers=headers,
-        json={
-            "title": "RA Staff Meeting",
-            "description": "Weekly staff meeting",
-            "start_time": (datetime.now() + timedelta(days=2, hours=5)).isoformat(),
-            "end_time": (datetime.now() + timedelta(days=2, hours=6)).isoformat()
-        }
-    )
-    print(f"   Meeting created: {meeting_response.json()['title']}")
-    
-    # 8. Check public availability
-    print("\n8. Checking public availability (for meeting scheduling)...")
-    availability_response = requests.get(
-        f"{BASE_URL}/api/public/availability/test_ra",
-        params={"days_ahead": 3}
-    )
-    available_slots = availability_response.json()['available_slots']
-    print(f"   Found {len(available_slots)} available time slots")
-    if available_slots:
-        print(f"   First available: {available_slots[0]['start_time']}")
-    
-    # 9. Get calendar view
-    print("\n9. Getting calendar view...")
-    start_date = datetime.now().isoformat()
-    end_date = (datetime.now() + timedelta(days=7)).isoformat()
-    calendar_response = requests.get(
-        f"{BASE_URL}/api/calendar",
-        headers=headers,
-        params={
-            "start_date": start_date,
-            "end_date": end_date
-        }
-    )
-    events = calendar_response.json()['events']
-    print(f"   Total events in next 7 days: {len(events)}")
-    
-    event_counts = {}
-    for event in events:
-        event_type = event['type']
-        event_counts[event_type] = event_counts.get(event_type, 0) + 1
-    
-    for event_type, count in event_counts.items():
-        print(f"   - {event_type}: {count}")
-    
-    # 10. Complete an assignment
-    print("\n10. Completing an assignment...")
-    assignments_response = requests.get(
-        f"{BASE_URL}/api/assignments",
-        headers=headers
-    )
-    first_assignment = assignments_response.json()[0]
-    
-    complete_response = requests.post(
-        f"{BASE_URL}/api/assignments/{first_assignment['id']}/complete",
-        headers=headers,
-        json={"actual_time_minutes": 100}
-    )
-    print(f"   Completed: {complete_response.json()['title']}")
-    print(f"   Actual time: {complete_response.json()['actual_time_minutes']} minutes")
-    
-    print("\n=== Test Complete! ===")
-    print("\nThe API is working correctly. Study blocks should have been")
-    print("automatically regenerated after adding assignments and meetings.")
+def test_health():
+    """Test health check endpoint"""
+    print("Testing health check...")
+    response = requests.get(f"{API_URL}/api/health")
+    print(f"Status: {response.status_code}")
+    print(f"Response: {response.json()}")
+    print()
 
+def test_calendar_parse():
+    """Test calendar parsing with sample iCal data"""
+    print("Testing calendar parsing...")
+    
+    sample_ical = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test//EN
+BEGIN:VEVENT
+SUMMARY:Math Class
+DTSTART:20240215T100000
+DTEND:20240215T113000
+END:VEVENT
+END:VCALENDAR"""
+    
+    response = requests.post(
+        f"{API_URL}/api/calendar/parse",
+        json={"ical_content": sample_ical}
+    )
+    print(f"Status: {response.status_code}")
+    print(f"Response: {response.json()}")
+    print()
+
+def test_schedule_generation():
+    """Test schedule generation (requires OpenAI API key to be set)"""
+    print("Testing schedule generation...")
+    
+    data = {
+        "calendar_events": [
+            {
+                "summary": "Math Class",
+                "start": "2024-02-15T10:00:00",
+                "end": "2024-02-15T11:30:00"
+            }
+        ],
+        "assignments": [
+            {
+                "name": "Set Theory Homework",
+                "due_date": "2024-02-20T23:59:00",
+                "hours_needed": 6,
+                "priority": 1
+            }
+        ],
+        "activities": [
+            {
+                "name": "Guitar Practice",
+                "hours": 3,
+                "priority": 3,
+                "is_weekly": True
+            }
+        ],
+        "preferences": {
+            "wake_time": "08:00",
+            "bed_time": "23:00"
+        }
+    }
+    
+    response = requests.post(
+        f"{API_URL}/api/schedule/generate",
+        json=data
+    )
+    print(f"Status: {response.status_code}")
+    
+    if response.status_code == 200:
+        schedule = response.json()
+        print(f"Generated {len(schedule.get('schedule', []))} study blocks")
+        print(f"First few blocks:")
+        for block in schedule.get('schedule', [])[:3]:
+            print(f"  - {block.get('name')}: {block.get('start')} to {block.get('end')}")
+    else:
+        print(f"Error: {response.text}")
+    print()
 
 if __name__ == "__main__":
+    print("=== CMU Schedule Planner API Tests ===\n")
+    
     try:
-        test_complete_workflow()
+        test_health()
+        test_calendar_parse()
+        
+        # Uncomment this when you have OpenAI API key configured
+        # test_schedule_generation()
+        
+        print("✓ Basic tests completed successfully!")
+        print("\nNote: Schedule generation test is commented out.")
+        print("Uncomment it in test_api.py after setting up your OpenAI API key.")
+        
     except requests.exceptions.ConnectionError:
-        print("Error: Could not connect to API. Make sure the server is running at", BASE_URL)
+        print("✗ Error: Could not connect to the API.")
+        print(f"Make sure the server is running at {API_URL}")
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"✗ Error: {e}")
