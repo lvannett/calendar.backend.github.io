@@ -4,3 +4,4 @@ openai==1.54.0
 icalendar==5.0.11
 python-dateutil==2.8.2
 gunicorn==21.2.0
+dotenv
