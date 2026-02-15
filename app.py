@@ -147,11 +147,13 @@ def generate_schedule_with_ai(calendar_events: List[Dict], assignments: List[Dic
     today = datetime.now().strftime("%Y-%m-%d")
     
     # Limit calendar events to avoid overwhelming the AI (keep only next 2 weeks)
-    today_dt = datetime.now()
+    today_date = datetime.now().date()
 
     limited_events = [
         e for e in calendar_events
-        if datetime.fromisoformat(e['start']) >= today_dt][:50]
+        if datetime.fromisoformat(e['start']).date() >= today_date
+    ][:50]
+
 
     
     # Prepare the prompt
@@ -181,7 +183,7 @@ REQUIREMENTS:
 STRATEGY: Even if calendar looks full during 9-5, there's ALWAYS time:
 - Early mornings (wake time to first event)
 - Evenings (after last event to bedtime)
-- Weekends
+- Weekendstoday_date
 - Gaps between events (even 30min gaps are useful)
 
 Return JSON array with format:
