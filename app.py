@@ -39,8 +39,12 @@ def parse_ical(ical_content: str) -> List[Dict[str, Any]]:
     events = []
     try:
         from dateutil.rrule import rrulestr
+        from dateutil.relativedelta import relativedelta
         
         cal = Calendar.from_ical(ical_content)
+        now = datetime.now()
+        today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        
         for component in cal.walk():
             if component.name == "VEVENT":
                 summary = str(component.get('summary', 'Untitled'))
@@ -55,19 +59,34 @@ def parse_ical(ical_content: str) -> List[Dict[str, Any]]:
                     dtend = datetime.combine(dtend, datetime.min.time())
                 
                 if rrule_str:
-                    # Expand recurring event
+                    # Handle recurring event
                     try:
-                        # Create rrule and generate occurrences starting from today
-                        rrule = rrulestr(str(rrule_str), dtstart=dtstart)
-                        
-                        # Start from today or the event's start date, whichever is later
-                        start_date = max(dtstart, datetime.now() - timedelta(days=7))  # Include last week
-                        end_date = datetime.now() + timedelta(days=120)
-                        
-                        occurrences = list(rrule.between(start_date, end_date, inc=True))
-                        
                         # Calculate duration
                         duration = dtend - dtstart
+                        
+                        # If event's original start was in the past, shift it to this year
+                        if dtstart.year < now.year:
+                            # Calculate how many years to shift forward
+                            years_diff = now.year - dtstart.year
+                            dtstart = dtstart + relativedelta(years=years_diff)
+                            dtend = dtstart + duration
+                            
+                            print(f"Shifted old recurring event '{summary}' forward {years_diff} year(s) to {dtstart.year}")
+                        
+                        # Create rrule with potentially adjusted start date
+                        rrule = rrulestr(str(rrule_str), dtstart=dtstart)
+                        
+                        # Generate occurrences from today through next 120 days
+                        end_date = today + timedelta(days=120)
+                        start_from = max(dtstart, today)
+                        
+                        occurrences = list(rrule.between(start_from, end_date, inc=True))
+                        
+                        # If no occurrences, try from original dtstart
+                        if len(occurrences) == 0 and dtstart >= today:
+                            occurrences = list(rrule.between(dtstart, end_date, inc=True))
+                        
+                        print(f"Recurring event '{summary}': generated {len(occurrences)} occurrences from {start_from.date()} to {end_date.date()}")
                         
                         # Create an event for each occurrence
                         for occurrence in occurrences[:100]:  # Limit to 100 instances
@@ -77,26 +96,33 @@ def parse_ical(ical_content: str) -> List[Dict[str, Any]]:
                                 'end': (occurrence + duration).isoformat(),
                                 'rrule': None  # Mark as expanded
                             })
+                            
                     except Exception as e:
-                        print(f"Error expanding recurring event: {e}")
-                        # If expansion fails, add the single instance
+                        print(f"Error expanding recurring event '{summary}': {e}")
+                        # If expansion fails, add the single instance if it's in the future
+                        if dtstart >= today:
+                            events.append({
+                                'summary': summary,
+                                'start': dtstart.isoformat(),
+                                'end': dtend.isoformat(),
+                                'rrule': str(rrule_str)
+                            })
+                else:
+                    # Single event - only add if in the future
+                    if dtstart >= today - timedelta(days=7):  # Include last week
                         events.append({
                             'summary': summary,
                             'start': dtstart.isoformat(),
                             'end': dtend.isoformat(),
-                            'rrule': str(rrule_str)
+                            'rrule': None
                         })
-                else:
-                    # Single event
-                    events.append({
-                        'summary': summary,
-                        'start': dtstart.isoformat(),
-                        'end': dtend.isoformat(),
-                        'rrule': None
-                    })
+                        
     except Exception as e:
         print(f"Error parsing iCal: {e}")
+        import traceback
+        traceback.print_exc()
     
+    print(f"Total events parsed: {len(events)}")
     return events
 
 def generate_schedule_with_ai(calendar_events: List[Dict], assignments: List[Dict], 
@@ -106,61 +132,43 @@ def generate_schedule_with_ai(calendar_events: List[Dict], assignments: List[Dic
     from datetime import datetime
     today = datetime.now().strftime("%Y-%m-%d")
     
+    # Limit calendar events to avoid overwhelming the AI (keep only next 2 weeks)
+    limited_events = [e for e in calendar_events if e['start'] >= today][:50]
+    
     # Prepare the prompt
-    prompt = f"""You are a smart scheduling assistant for a CMU student. Your job is to schedule study blocks for assignments and activities.
+    prompt = f"""You are a smart scheduling assistant. Generate study blocks for these assignments.
 
-TODAY'S DATE: {today}
-IMPORTANT: Schedule all study blocks starting from TODAY or later. Do not schedule anything in the past.
+TODAY: {today}
 
-CALENDAR EVENTS (already scheduled):
-{json.dumps(calendar_events, indent=2)}
+CALENDAR (next 2 weeks):
+{json.dumps(limited_events, indent=2)}
 
-ASSIGNMENTS (need to schedule):
+ASSIGNMENTS TO SCHEDULE:
 {json.dumps(assignments, indent=2)}
 
-ACTIVITIES (optional, fill extra time):
-{json.dumps(activities, indent=2)}
-
 PREFERENCES:
-- Wake up time: {preferences.get('wake_time', '08:00')}
-- Bedtime: {preferences.get('bed_time', '23:00')}
+- Wake: {preferences.get('wake_time', '08:00')}
+- Sleep: {preferences.get('bed_time', '23:00')}
 
-RULES:
-1. Each study block must be at least 30 minutes
-2. For blocks longer than 3 hours, mix different assignments (guideline, not hard rule)
-3. Don't schedule during existing calendar events
-4. Only schedule between wake time and bedtime
-5. Prioritize by due date first, then by priority (1=highest, 5=lowest)
-6. Handle recurring events properly (e.g., "Math class every MWF")
-7. For activities with is_weekly=true, spread hours across the week
-8. Only schedule far enough into the future to complete all assignments
-9. Activities are optional - only schedule if there's extra time after assignments
-10. CRITICAL: All study blocks must be on {today} or later dates. No past dates!
+REQUIREMENTS:
+1. YOU MUST generate study blocks. Find gaps between events, use mornings, evenings, weekends.
+2. Each block: minimum 30 minutes
+3. Don't overlap with calendar events
+4. Schedule from {today} forward only
+5. Prioritize by due date, then priority (1=highest)
+6. Break large assignments across multiple sessions
+7. USE ALL AVAILABLE TIME - mornings before first event, evenings after last event, weekends
 
-OUTPUT FORMAT:
-Return a JSON array of study blocks. Each block should have:
-- name: string (what to work on)
-- start: ISO datetime string (MUST be {today} or later)
-- end: ISO datetime string
-- type: "assignment" or "activity"
+STRATEGY: Even if calendar looks full during 9-5, there's ALWAYS time:
+- Early mornings (wake time to first event)
+- Evenings (after last event to bedtime)
+- Weekends
+- Gaps between events (even 30min gaps are useful)
 
-Example:
-[
-  {{
-    "name": "Set Theory Homework",
-    "start": "2026-02-15T14:00:00",
-    "end": "2026-02-15T16:30:00",
-    "type": "assignment"
-  }}
-]
+Return JSON array with format:
+[{{"name": "Assignment Name", "start": "2026-02-15T14:00:00", "end": "2026-02-15T16:00:00", "type": "assignment"}}]
 
-IMPORTANT: 
-- Return ONLY valid JSON, no other text
-- Ensure all times are in ISO format
-- Don't overlap with existing calendar events
-- Be smart about spacing study sessions throughout available days
-- ALL DATES MUST BE {today} OR LATER
-"""
+CRITICAL: Return AT LEAST ONE study block. There is always time available. Return ONLY JSON, nothing else."""
 
     try:
         response = client.chat.completions.create(
