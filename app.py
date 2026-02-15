@@ -14,6 +14,7 @@ CORS(app)
 
 load_dotenv()
 
+
 # Initialize OpenAI client
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
@@ -34,31 +35,62 @@ class Activity:
         self.is_weekly = is_weekly
 
 def parse_ical(ical_content: str) -> List[Dict[str, Any]]:
-    """Parse iCalendar content and extract events"""
+    """Parse iCalendar content and extract events, expanding recurring events"""
     events = []
     try:
+        from dateutil.rrule import rrulestr
+        
         cal = Calendar.from_ical(ical_content)
         for component in cal.walk():
             if component.name == "VEVENT":
-                event = {
-                    'summary': str(component.get('summary', 'Untitled')),
-                    'start': component.get('dtstart').dt,
-                    'end': component.get('dtend').dt,
-                    'rrule': str(component.get('rrule')) if component.get('rrule') else None
-                }
+                summary = str(component.get('summary', 'Untitled'))
+                dtstart = component.get('dtstart').dt
+                dtend = component.get('dtend').dt
+                rrule_str = component.get('rrule')
                 
-                # Handle datetime vs date objects
-                if isinstance(event['start'], datetime):
-                    event['start'] = event['start'].isoformat()
-                else:
-                    event['start'] = datetime.combine(event['start'], datetime.min.time()).isoformat()
-                    
-                if isinstance(event['end'], datetime):
-                    event['end'] = event['end'].isoformat()
-                else:
-                    event['end'] = datetime.combine(event['end'], datetime.min.time()).isoformat()
+                # Convert date to datetime if needed
+                if not isinstance(dtstart, datetime):
+                    dtstart = datetime.combine(dtstart, datetime.min.time())
+                if not isinstance(dtend, datetime):
+                    dtend = datetime.combine(dtend, datetime.min.time())
                 
-                events.append(event)
+                if rrule_str:
+                    # Expand recurring event
+                    try:
+                        # Create rrule and generate occurrences for next 120 days
+                        rrule = rrulestr(str(rrule_str), dtstart=dtstart)
+                        end_date = datetime.now() + timedelta(days=120)
+                        
+                        occurrences = list(rrule.between(dtstart, end_date, inc=True))
+                        
+                        # Calculate duration
+                        duration = dtend - dtstart
+                        
+                        # Create an event for each occurrence
+                        for occurrence in occurrences[:100]:  # Limit to 100 instances
+                            events.append({
+                                'summary': summary,
+                                'start': occurrence.isoformat(),
+                                'end': (occurrence + duration).isoformat(),
+                                'rrule': None  # Mark as expanded
+                            })
+                    except Exception as e:
+                        print(f"Error expanding recurring event: {e}")
+                        # If expansion fails, add the single instance
+                        events.append({
+                            'summary': summary,
+                            'start': dtstart.isoformat(),
+                            'end': dtend.isoformat(),
+                            'rrule': str(rrule_str)
+                        })
+                else:
+                    # Single event
+                    events.append({
+                        'summary': summary,
+                        'start': dtstart.isoformat(),
+                        'end': dtend.isoformat(),
+                        'rrule': None
+                    })
     except Exception as e:
         print(f"Error parsing iCal: {e}")
     
