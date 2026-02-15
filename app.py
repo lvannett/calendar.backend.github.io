@@ -50,7 +50,15 @@ def parse_ical(ical_content: str) -> List[Dict[str, Any]]:
                 summary = str(component.get('summary', 'Untitled'))
                 dtstart = component.get('dtstart').dt
                 dtend = component.get('dtend').dt
-                rrule_str = component.get('rrule')
+                # Handle recurrence rule properly
+                rrule_prop = component.get('rrule')
+                rrule_str = None
+
+                if rrule_prop:
+                    try:
+                        rrule_str = rrule_prop.to_ical().decode()
+                    except Exception:
+                        rrule_str = str(rrule_prop)
                 
                 # Convert date to datetime if needed
                 if not isinstance(dtstart, datetime):
@@ -133,7 +141,12 @@ def generate_schedule_with_ai(calendar_events: List[Dict], assignments: List[Dic
     today = datetime.now().strftime("%Y-%m-%d")
     
     # Limit calendar events to avoid overwhelming the AI (keep only next 2 weeks)
-    limited_events = [e for e in calendar_events if e['start'] >= today][:50]
+    today_dt = datetime.now()
+
+    limited_events = [
+        e for e in calendar_events
+        if datetime.fromisoformat(e['start']) >= today_dt][:50]
+
     
     # Prepare the prompt
     prompt = f"""You are a smart scheduling assistant. Generate study blocks for these assignments.
