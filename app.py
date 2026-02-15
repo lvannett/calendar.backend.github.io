@@ -82,7 +82,13 @@ def parse_ical(ical_content: str) -> List[Dict[str, Any]]:
                             print(f"Shifted old recurring event '{summary}' forward {years_diff} year(s) to {dtstart.year}")
                         
                         # Create rrule with potentially adjusted start date
-                        rrule = rrulestr(str(rrule_str), dtstart=dtstart)
+                        rule_parts = []
+                        for key, value in rrule_str.items():
+                            rule_parts.append(f"{key}={','.join(value)}")
+
+                        rule_string = ";".join(rule_parts)
+                        rrule = rrulestr(rule_string, dtstart=dtstart)
+
                         
                         # Generate occurrences from today through next 120 days
                         end_date = today + timedelta(days=120)
